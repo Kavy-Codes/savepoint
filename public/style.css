@@ -165,6 +165,7 @@ main { width: 100%; max-width: var(--maxw); margin: 0 auto; position: relative; 
 
 .section.hidden { display: none; }
 .section { animation: sectionIn 0.45s var(--transition); }
+#controlsSection:not(.hidden) { margin-top: 28px; }
 @keyframes sectionIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 
 .section-label {
@@ -649,15 +650,44 @@ main { width: 100%; max-width: var(--maxw); margin: 0 auto; position: relative; 
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 11px;
-  padding: 14px 18px;
+  overflow: hidden;
   transition: border-color var(--transition-fast);
 }
 .faq-item:hover { border-color: var(--border-bright); }
-.faq-item summary { font-weight: 600; font-size: 0.9rem; cursor: pointer; list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.faq-item summary {
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  user-select: none;
+}
 .faq-item summary::-webkit-details-marker { display: none; }
-.faq-item summary::after { content: '+'; font-family: var(--font-mono); font-size: 1.1rem; color: var(--fg-muted); transition: transform var(--transition-fast); }
+.faq-item summary::after {
+  content: '+';
+  font-family: var(--font-mono);
+  font-size: 1.1rem;
+  color: var(--fg-muted);
+  transition: transform var(--transition-fast), color var(--transition-fast);
+}
 .faq-item[open] summary::after { transform: rotate(45deg); color: var(--accent); }
-.faq-item p { color: var(--fg-dim); margin-top: 8px; font-size: 0.84rem; line-height: 1.55; }
+.faq-item[open] summary { border-bottom: 1px solid var(--border); }
+.faq-item .faq-content {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1), padding 0.35s;
+}
+.faq-item[open] .faq-content { max-height: 200px; padding: 0 18px 16px; }
+.faq-item .faq-content p {
+  color: var(--fg-dim);
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
 
 /* ===== TOAST ===== */
 .toast {

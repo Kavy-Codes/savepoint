@@ -105,8 +105,12 @@ app.post('/api/cut', async (req, res) => {
     if (!validUrl(url)) return res.status(400).json({ error: 'Invalid YouTube URL' });
 
     const startSec = Number(start), endSec = Number(end), duration = endSec - startSec;
-    if (!Number.isFinite(startSec) || !Number.isFinite(endSec) || duration <= 0 || duration > 600) {
-      return res.status(400).json({ error: 'Invalid range (1s–10min)' });
+    if (!Number.isFinite(startSec) || !Number.isFinite(endSec) || duration <= 0) {
+      return res.status(400).json({ error: 'Invalid range (must be > 0s)' });
+    }
+    // Recommended max: 30 minutes for reliable stream-seek performance
+    if (duration > 1800) {
+      console.log(`Warning: ${duration}s clip exceeds 30min recommendation`);
     }
 
     const id = uuidv4();

@@ -147,11 +147,6 @@
           <span class="dur-size" id="durSize">~0 MB</span>
         </div>
 
-        <div class="preset-section">
-          <label class="section-label">Viral Presets</label>
-          <div class="preset-scroll" id="presetScroll"></div>
-        </div>
-
         <div class="format-section">
           <label class="section-label" id="formatLabel">Format</label>
           <div class="format-pills" id="formatPills" role="radiogroup" aria-labelledby="formatLabel"></div>
@@ -208,19 +203,19 @@
       <div class="faq">
         <details class="faq-item" open>
           <summary>Does this download the whole video?</summary>
-          <p>No. yt-dlp resolves direct stream URLs, then ffmpeg seeks to your start time and reads only your range. A 30-second clip moves a few megabytes, not gigabytes.</p>
+          <div class="faq-content"><p>No. yt-dlp resolves direct stream URLs, then ffmpeg seeks to your start time and reads only your range. A 30-second clip moves a few megabytes, not gigabytes.</p></div>
         </details>
         <details class="faq-item">
           <summary>What do the quality options mean?</summary>
-          <p><strong>Video + Audio</strong> merges the best video and audio streams at that resolution into an MP4. <strong>Video only</strong> is silent (handy for B-roll). MP3 and M4A switch the menu to audio bitrates.</p>
+          <div class="faq-content"><p><strong>Video + Audio</strong> merges the best video and audio streams at that resolution into an MP4. <strong>Video only</strong> is silent (handy for B-roll). MP3 and M4A switch the menu to audio bitrates.</p></div>
         </details>
         <details class="faq-item">
-          <summary>Why is there a 10-minute limit?</summary>
-          <p>Stream-seek clipping stays fast and reliable for short ranges. For longer material, a full download is usually the better tool.</p>
+          <summary>Is there a time limit?</summary>
+          <div class="faq-content"><p>Recommended max is 30 minutes — stream URLs expire on longer clips. Shorter ranges are more reliable.</p></div>
         </details>
         <details class="faq-item">
           <summary>Which format should I pick?</summary>
-          <p>MP4 for editing and sharing, MP3 for universal audio, M4A for smaller AAC audio at higher quality. Downloads land in your browser's normal downloads bar.</p>
+          <div class="faq-content"><p>MP4 for editing and sharing, MP3 for universal audio, M4A for smaller AAC audio at higher quality. Downloads land in your browser's normal downloads bar.</p></div>
         </details>
       </div>
     </section>

@@ -149,7 +149,7 @@ function animateOrbs() {
   })();
 }
 
-// ===== YT LOGO: solid extruded mark, continuous spin in place =====
+// ===== SAVEPOINT LOGO: solid extruded mark, continuous spin in place =====
 function initYTLogo() {
   const canvas = document.getElementById('logo-yt');
   if (!canvas || typeof Zdog === 'undefined') return;
@@ -159,14 +159,12 @@ function initYTLogo() {
       width: 160,
       height: 160,
       rotate: { x: -0.16, y: 0.4 },
-      dragRotate: true,
-      onDragStart: () => cancelAnimationFrame(animLogoYT),
-      onDragEnd: () => animateYTLogo()
+      dragRotate: true
     });
     buildYTLogo(logoYTIllo, 1);
     logoYTIllo.updateRenderGraph();
     animateYTLogo();
-  } catch (e) { console.warn('YT logo failed:', e); }
+  } catch (e) { console.warn('Logo failed:', e); }
 }
 
 function initThumbPlay() {
@@ -207,16 +205,17 @@ function initToast() {
   } catch (e) { console.warn('Toast failed:', e); }
 }
 
-// Solid YouTube mark: extruded red rounded rect + white play triangle. No ring, no dots.
+// Solid YouTube mark: extruded red rounded rect + white play triangle on BOTH faces. No ring, no dots.
 function buildYTLogo(illo, s) {
   const scale = s || 1;
   const red = '#ff0000';
   const w = 104 * scale;
   const h = 74 * scale;
   const r = 22 * scale;
-  const depth = 16 * scale;
+  const depth = 18 * scale;
   const layers = 9;
 
+  // Extruded rounded rect body
   for (let i = 0; i < layers; i++) {
     const t = i / (layers - 1);
     new Zdog.RoundedRect({
@@ -237,7 +236,7 @@ function buildYTLogo(illo, s) {
     { x: -12 * scale, y: 16 * scale }
   ];
 
-  // Front face play triangle - at exact front face depth
+  // Front face triangle only
   new Zdog.Shape({
     addTo: illo,
     path: playPath,
@@ -245,19 +244,7 @@ function buildYTLogo(illo, s) {
     stroke: false,
     fill: true,
     color: '#ffffff',
-    translate: { z: depth / 2, x: 3 * scale }
-  });
-
-  // Back face play triangle - mirrored, at exact back face depth
-  new Zdog.Shape({
-    addTo: illo,
-    path: playPath,
-    closed: true,
-    stroke: false,
-    fill: true,
-    color: '#ffffff',
-    translate: { z: -depth / 2, x: -3 * scale },
-    rotate: { y: Math.PI }
+    translate: { z: depth / 2 + 0.3, x: 3 * scale }
   });
 }
 
@@ -516,40 +503,6 @@ function stopProgress() {
 }
 
 // ============================================
-// PRESETS
-// ============================================
-const PRESETS = [
-  { id: '100m', label: '$100M Day', start: '11:31', end: '12:45', icon: '⚡' },
-  { id: 'bank', label: 'Bank Kicked Out', start: '12:40', end: '13:38', icon: '💳' },
-  { id: 'target', label: 'Target $1M', start: '33:05', end: '35:05', icon: '🏪' },
-  { id: 'kylie', label: 'Kylie Jenner', start: '40:20', end: '41:18', icon: '📱' },
-  { id: 'refi', label: 'Cash-Out Refi', start: '16:39', end: '17:28', icon: '🏠' },
-  { id: 'mistake', label: '$10M Mistake', start: '26:20', end: '27:28', icon: '💥' },
-  { id: 'shirt', label: '$7 Shirt', start: '86:08', end: '86:46', icon: '👔' },
-  { id: 'dog', label: 'Dog PB', start: '105:15', end: '106:03', icon: '🐕' }
-];
-
-function renderPresets() {
-  const scroll = $('#presetScroll');
-  scroll.innerHTML = PRESETS.map(p => `
-    <button class="preset-btn" type="button" data-id="${p.id}" title="${p.label}: ${p.start}–${p.end}" aria-label="${p.label}">
-      <span class="preset-icon">${p.icon}</span>
-      <span>${p.label}</span>
-    </button>
-  `).join('');
-  $$('.preset-btn').forEach(btn => btn.addEventListener('click', () => {
-    const p = PRESETS.find(x => x.id === btn.dataset.id);
-    if (!p) return;
-    applyPreset(p.start, p.end);
-  }));
-}
-function applyPreset(startStr, endStr) {
-  setFields('start', parseTimeString(startStr) || 0);
-  setFields('end', parseTimeString(endStr) || 0);
-  showStatus(`Preset: ${startStr} → ${endStr}`, 'success');
-}
-
-// ============================================
 // FORMATS
 // ============================================
 const FORMATS = [
@@ -747,7 +700,7 @@ function updateDurationPreview() {
   const opt = getOption(selectedQuality);
   const mbPerMin = opt?.mbPerMin || 12;
 
-  preview.classList.toggle('invalid', dur <= 0 || dur > 600);
+  preview.classList.toggle('invalid', dur <= 0);
   if (dur <= 0) {
     $('#durValue').textContent = '—';
     $('#durSize').textContent = 'End must be after start';
@@ -755,9 +708,9 @@ function updateDurationPreview() {
   }
   $('#durValue').textContent = fmtHMS(dur);
   const est = Math.max(0.1, (dur / 60) * mbPerMin);
-  $('#durSize').textContent = dur > 600
-    ? `Max clip length is 10:00 (${opt?.label || 'auto'})`
-    : `~${est < 10 ? est.toFixed(1) : Math.round(est)} MB · ${opt?.label || 'auto'}`;
+  $('#durSize').textContent = dur <= 0
+    ? 'End must be after start'
+    : `~${est < 10 ? est.toFixed(1) : Math.round(est)} MB · ${opt?.label || 'auto'}` + (dur > 1800 ? ' (30min+ not recommended)' : '');
 }
 
 // ============================================
@@ -845,7 +798,7 @@ async function cutVideo() {
 
   if (!currentUrl) { showStatus('Load a video first', 'error'); return; }
   if (dur <= 0) { showStatus('End time must be after start time', 'error'); return; }
-  if (dur > 600) { showStatus('Maximum clip length is 10 minutes', 'error'); return; }
+  if (dur > 1800) { showStatus('Clips over 30 minutes may fail — stream URLs expire', 'loading'); }
 
   const btn = $('#cutBtn');
   btn.dataset.text = 'Cut & Download';
@@ -913,7 +866,6 @@ function hideToast() {
 // ============================================
 document.addEventListener('DOMContentLoaded', () => {
   initAllZdog();
-  renderPresets();
   renderFormats();
   buildQualityOptions();
 
@@ -985,5 +937,3 @@ document.addEventListener('DOMContentLoaded', () => {
     [animHero, animOrbs, animLogoYT, animThumbPlay, animArrow, animToast, animScissors, animConfetti].forEach(id => id && cancelAnimationFrame(id));
   });
 });
-
-window.applyPreset = applyPreset;
