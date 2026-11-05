@@ -205,54 +205,94 @@ function initToast() {
   } catch (e) { console.warn('Toast failed:', e); }
 }
 
-// Solid YouTube mark: extruded red rounded rect + white play triangle on BOTH faces. No ring, no dots.
+// Savepoint 3D Logo: Extruded red frame + white download arrow & bottom line on FRONT and BACK
 function buildYTLogo(illo, s) {
   const scale = s || 1;
-  const red = '#ff0000';
-  const w = 104 * scale;
-  const h = 74 * scale;
-  const r = 22 * scale;
-  const depth = 18 * scale;
-  const layers = 9;
+  const W      = 96 * scale;
+  const H      = 70 * scale;
+  const R      = 18 * scale;
+  const depth  = 18 * scale;
+  const layers = 11;
 
-  // Extruded rounded rect body
+  // ── 1. Extruded border ring (front and back rims bright red, shaded inside) ──
   for (let i = 0; i < layers; i++) {
     const t = i / (layers - 1);
+    const z = -depth / 2 + t * depth;
+    const isRim = (i === 0 || i === layers - 1);
+    const sw = (5.5 + Math.sin(t * Math.PI) * 1.5) * scale;
     new Zdog.RoundedRect({
       addTo: illo,
-      width: w,
-      height: h,
-      cornerRadius: r,
-      stroke: false,
-      fill: true,
-      color: i === layers - 1 ? red : '#cc0000',
-      translate: { z: -depth / 2 + t * depth }
+      width: W, height: H,
+      cornerRadius: R,
+      stroke: sw,
+      fill: false,
+      color: isRim ? '#ff2020' : '#bb0000',
+      translate: { z }
     });
   }
 
-  const playPath = [
-    { x: -12 * scale, y: -16 * scale },
-    { x: 18 * scale, y: 0 },
-    { x: -12 * scale, y: 16 * scale }
-  ];
-
-  // Front face triangle only
-  new Zdog.Shape({
+  // ── 2. Sleek dark center plate inside the frame ──
+  new Zdog.RoundedRect({
     addTo: illo,
-    path: playPath,
-    closed: true,
-    stroke: false,
+    width: W - 13 * scale,
+    height: H - 13 * scale,
+    cornerRadius: R - 5 * scale,
+    stroke: 1.5 * scale,
     fill: true,
-    color: '#ffffff',
-    translate: { z: depth / 2 + 0.3, x: 3 * scale }
+    color: '#08080b',
+    translate: { z: 0 }
   });
+
+  // ── 3. White download arrow & bottom line on BOTH front and back ──
+  const fz = depth / 2 + 1.2 * scale;
+  const sw = 4.8 * scale;
+  const white = '#ffffff';
+
+  function addDownloadIcon(zPos) {
+    // Arrow vertical stem
+    new Zdog.Shape({
+      addTo: illo,
+      path: [{ x: 0, y: -15 * scale }, { x: 0, y: 3 * scale }],
+      stroke: sw, color: white,
+      translate: { z: zPos }
+    });
+
+    // Arrow chevron pointing down ⌄
+    new Zdog.Shape({
+      addTo: illo,
+      path: [
+        { x: -11 * scale, y: -2 * scale },
+        { x:   0,         y:  9 * scale },
+        { x:  11 * scale, y: -2 * scale }
+      ],
+      stroke: sw, closed: false, fill: false,
+      color: white,
+      translate: { z: zPos }
+    });
+
+    // Small line down there
+    new Zdog.Shape({
+      addTo: illo,
+      path: [{ x: -16 * scale, y: 0 }, { x: 16 * scale, y: 0 }],
+      stroke: 4.5 * scale, color: white,
+      translate: { x: 0, y: 20 * scale, z: zPos }
+    });
+  }
+
+  // Front face icon
+  addDownloadIcon(fz);
+
+  // Back face icon (visible when logo spins around)
+  addDownloadIcon(-fz);
 }
 
 function animateYTLogo() {
   if (!logoYTIllo) return;
   cancelAnimationFrame(animLogoYT);
   (function tick() {
-    logoYTIllo.rotate.y += 0.03;
+    if (!logoYTIllo.isDragging) {
+      logoYTIllo.rotate.y += 0.02;
+    }
     logoYTIllo.rotate.x += (-0.16 - logoYTIllo.rotate.x) * 0.06;
     logoYTIllo.updateRenderGraph();
     animLogoYT = requestAnimationFrame(tick);
@@ -470,7 +510,12 @@ function setLoading(btn, loading, text) {
   if (loading) {
     btn.innerHTML = `<span>${text}</span><svg class="btn-ico spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10" stroke-opacity="0.25"/><path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"/></svg><span class="btn-ripple"></span>`;
   } else {
-    btn.innerHTML = `<span>${btn.dataset.text || 'Load Video'}</span><svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12l-7 7-7-7M12 5v14"/></svg><span class="btn-ripple"></span>`;
+    const label = btn.dataset.text || 'Load Video';
+    const icon = btn.dataset.icon || 'down';
+    const icoSvg = icon === 'cut'
+      ? `<svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12l-7 7-7-7M12 5v14"/></svg>`
+      : `<svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12l-7 7-7-7M12 5v14"/></svg>`;
+    btn.innerHTML = `<span>${label}</span>${icoSvg}<span class="btn-ripple"></span>`;
   }
 }
 function showControls(show) {
@@ -488,17 +533,56 @@ function showProgress(show) {
     setTimeout(() => wrap.classList.add('hidden'), 1400);
   }
 }
+let cutTimer = null;
+let cutStartTime = 0;
+
 function simProgress() {
   const fill = $('#progressFill'), txt = $('#progressText');
-  const msgs = ['Fetching stream segments…', 'Seeking to start position…', 'Downloading clip only…', 'Processing video…', 'Finalizing…'];
-  let p = 0;
-  progressTimer = setInterval(() => {
-    p = Math.min(p + Math.random() * 7 + 3, 92);
-    fill.style.width = p + '%';
-    txt.textContent = msgs[Math.floor(Math.random() * msgs.length)];
-  }, 700);
+  stopProgress();
+
+  cutStartTime = Date.now();
+  let percent = 3;
+  fill.style.width = '3%';
+
+  txt.textContent = '3%';
+  showStatus('Resolving YouTube direct streams (no full download)…', 'loading');
+
+  cutTimer = setInterval(() => {
+    const elapsed = Math.floor((Date.now() - cutStartTime) / 1000);
+
+    // Continuous progressive curve: brisk at start, then steady, smoothly advancing towards 96%
+    if (percent < 25) {
+      percent += 2.8;
+    } else if (percent < 55) {
+      percent += 1.4;
+    } else if (percent < 75) {
+      percent += 0.7;
+    } else if (percent < 90) {
+      percent += 0.35;
+    } else if (percent < 96) {
+      percent += 0.12;
+    }
+    const currentPct = Math.min(percent, 96);
+    fill.style.width = currentPct.toFixed(1) + '%';
+    txt.textContent = Math.round(currentPct) + '%';
+
+    // Truthful, realistic pipeline descriptions with elapsed timer in the status box only
+    if (elapsed < 3) {
+      showStatus(`Connecting to YouTube & finding stream segments (${elapsed}s elapsed)…`, 'loading');
+    } else if (elapsed < 7) {
+      showStatus(`Seeking stream to chosen timestamp (${elapsed}s elapsed)…`, 'loading');
+    } else if (elapsed < 14) {
+      showStatus(`Trimming media segments & syncing audio tracks (${elapsed}s elapsed)…`, 'loading');
+    } else if (elapsed < 24) {
+      showStatus(`Encoding & processing video frames (${elapsed}s elapsed) — high quality takes a moment…`, 'loading');
+    } else {
+      showStatus(`Muxing container & preparing browser download (${elapsed}s elapsed) — almost done…`, 'loading');
+    }
+  }, 400);
 }
+
 function stopProgress() {
+  if (cutTimer) { clearInterval(cutTimer); cutTimer = null; }
   if (progressTimer) { clearInterval(progressTimer); progressTimer = null; }
 }
 
@@ -805,7 +889,6 @@ async function cutVideo() {
   scissorsEnergy = 5;
   setLoading(btn, true, 'Cutting…');
   showProgress(true);
-  showStatus('Connecting to YouTube streams…', 'loading');
   simProgress();
 
   try {
@@ -818,7 +901,7 @@ async function cutVideo() {
     if (data.error) throw new Error(data.error);
 
     $('#progressFill').style.width = '100%';
-    $('#progressText').textContent = 'Download ready';
+    $('#progressText').textContent = '100%';
     showStatus(`Clip ready (${(data.size / 1024 / 1024).toFixed(1)} MB) — starting download…`, 'success');
 
     try {
@@ -869,10 +952,19 @@ document.addEventListener('DOMContentLoaded', () => {
   renderFormats();
   buildQualityOptions();
 
-  $('#loadBtn').addEventListener('click', loadVideo);
+  const loadBtn = $('#loadBtn');
+  const cutBtn  = $('#cutBtn');
+
+  // Store each button's natural label/icon so setLoading() can restore correctly
+  loadBtn.dataset.text = 'Load Video';
+  loadBtn.dataset.icon = 'down';
+  cutBtn.dataset.text  = 'Cut & Download';
+  cutBtn.dataset.icon  = 'cut';
+
+  loadBtn.addEventListener('click', loadVideo);
   $('#ytUrl').addEventListener('keydown', e => { if (e.key === 'Enter') loadVideo(); });
-  $('#cutBtn').addEventListener('click', cutVideo);
-  $('#cutBtn').addEventListener('mouseenter', () => { scissorsEnergy = 3.4; });
+  cutBtn.addEventListener('click', cutVideo);
+  cutBtn.addEventListener('mouseenter', () => { scissorsEnergy = 3.4; });
   $('#qualityTrigger').addEventListener('click', toggleQualityDropdown);
   $('#toastDismiss').addEventListener('click', hideToast);
 

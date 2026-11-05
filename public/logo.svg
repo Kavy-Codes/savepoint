@@ -1,5 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="120" fill="#0b0b0f"/>
-  <rect x="72" y="136" width="368" height="256" rx="72" fill="#ff0000"/>
-  <path d="M220 204l104 52-104 52z" fill="#ffffff"/>
+  <rect width="512" height="512" rx="128" fill="#0b0b0f"/>
+  <!-- Red rounded frame matching the screenshot -->
+  <rect x="80" y="80" width="352" height="352" rx="96" fill="none" stroke="#ff0000" stroke-width="40"/>
+  <!-- White download arrow -->
+  <path d="M256 168v112m0 0l-48-48m48 48l48-48" fill="none" stroke="#ffffff" stroke-width="32" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Small horizontal line down there -->
+  <path d="M176 344h160" stroke="#ffffff" stroke-width="32" stroke-linecap="round"/>
 </svg>

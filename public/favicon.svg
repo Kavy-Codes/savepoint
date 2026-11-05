@@ -1,6 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="15" fill="#0b0b0f"/>
-  <rect x="9" y="17" width="46" height="32" rx="9" fill="#ff0000"/>
-  <path d="M27.5 25.5l13 6.5-13 6.5z" fill="#ffffff"/>
-  <path d="M14 50.5l36-37" stroke="#0b0b0f" stroke-width="3" stroke-linecap="round" opacity="0"/>
+  <rect width="64" height="64" rx="16" fill="#0b0b0f"/>
+  <!-- Red rounded frame matching the screenshot -->
+  <rect x="10" y="10" width="44" height="44" rx="12" fill="none" stroke="#ff0000" stroke-width="5"/>
+  <!-- White download arrow -->
+  <path d="M32 21v14m0 0l-6-6m6 6l6-6" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Small line down there -->
+  <path d="M22 43h20" stroke="#ffffff" stroke-width="4" stroke-linecap="round"/>
 </svg>

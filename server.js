@@ -10,7 +10,14 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const FFMPEG_PATH = '/usr/bin/ffmpeg';
+// ── Config via env vars (all with sensible defaults) ──────────────────────────
+const PORT            = parseInt(process.env.PORT, 10) || 3000;
+const FFMPEG_PATH     = process.env.FFMPEG_PATH || (process.platform === 'win32' ? 'ffmpeg' : (fs.existsSync('/usr/bin/ffmpeg') ? '/usr/bin/ffmpeg' : 'ffmpeg'));
+const downloadsDir    = process.env.DOWNLOADS_DIR || path.join(__dirname, 'downloads');
+const MAX_CLIP_SECS   = parseInt(process.env.MAX_CLIP_SECONDS, 10) || 1800;  // 30 min
+const CLEANUP_AGE_MS  = 3_600_000;   // 1 hour
+const CLEANUP_TICK_MS = 300_000;     // 5 min
+
 ffmpeg.setFfmpegPath(FFMPEG_PATH);
 
 const app = express();
@@ -18,9 +25,9 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-const downloadsDir = path.join(__dirname, 'downloads');
 if (!fs.existsSync(downloadsDir)) fs.mkdirSync(downloadsDir, { recursive: true });
 
+// ── Periodic cleanup of old clips ─────────────────────────────────────────────
 setInterval(() => {
   fs.readdir(downloadsDir, (err, files) => {
     if (err) return;
@@ -28,16 +35,19 @@ setInterval(() => {
     files.forEach(file => {
       const fp = path.join(downloadsDir, file);
       fs.stat(fp, (err, stats) => {
-        if (!err && now - stats.mtimeMs > 3600000) fs.unlink(fp, () => {});
+        if (!err && now - stats.mtimeMs > CLEANUP_AGE_MS) fs.unlink(fp, () => {});
       });
     });
   });
-}, 300000);
+}, CLEANUP_TICK_MS);
 
+// ── Validation ─────────────────────────────────────────────────────────────────
 function validUrl(url) {
-  return typeof url === 'string' && (url.includes('youtube.com') || url.includes('youtu.be'));
+  if (typeof url !== 'string' || url.length > 2048) return false;
+  return url.includes('youtube.com') || url.includes('youtu.be');
 }
 
+// ── /api/info ─────────────────────────────────────────────────────────────────
 app.post('/api/info', async (req, res) => {
   try {
     const { url } = req.body;
@@ -60,6 +70,7 @@ app.post('/api/info', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── /api/formats ──────────────────────────────────────────────────────────────
 app.post('/api/formats', async (req, res) => {
   try {
     const { url } = req.body;
@@ -99,6 +110,7 @@ app.post('/api/formats', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── /api/cut ──────────────────────────────────────────────────────────────────
 app.post('/api/cut', async (req, res) => {
   try {
     const { url, start, end, format = 'mp4', quality = 'auto' } = req.body;
@@ -108,9 +120,8 @@ app.post('/api/cut', async (req, res) => {
     if (!Number.isFinite(startSec) || !Number.isFinite(endSec) || duration <= 0) {
       return res.status(400).json({ error: 'Invalid range (must be > 0s)' });
     }
-    // Recommended max: 30 minutes for reliable stream-seek performance
-    if (duration > 1800) {
-      console.log(`Warning: ${duration}s clip exceeds 30min recommendation`);
+    if (duration > MAX_CLIP_SECS) {
+      return res.status(400).json({ error: `Clip too long — maximum is ${MAX_CLIP_SECS}s (${Math.round(MAX_CLIP_SECS / 60)} min)` });
     }
 
     const id = uuidv4();
@@ -166,6 +177,7 @@ app.post('/api/cut', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── ffmpeg helpers ────────────────────────────────────────────────────────────
 function respond(res, out, id, ext, start, dur) {
   if (!fs.existsSync(out)) return res.status(500).json({ error: 'No output' });
   const stat = fs.statSync(out);
@@ -216,6 +228,7 @@ function fallbackEncode(streams, start, dur, out, res, id, ext, opts) {
   });
 }
 
+// ── /download/:file ───────────────────────────────────────────────────────────
 app.get('/download/:file', (req, res) => {
   const fp = path.join(downloadsDir, path.basename(req.params.file));
   if (!fs.existsSync(fp)) return res.status(404).json({ error: 'Not found' });
@@ -230,4 +243,4 @@ app.get('/download/:file', (req, res) => {
   fs.createReadStream(fp).pipe(res);
 });
 
-app.listen(3000, '0.0.0.0', () => console.log('Savepoint → http://0.0.0.0:3000'));
+app.listen(PORT, '0.0.0.0', () => console.log(`Savepoint → http://0.0.0.0:${PORT}`));

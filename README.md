@@ -26,10 +26,10 @@
 | Feature | Details |
 |---------|---------|
 | **Stream-seek clipping** | yt-dlp resolves direct stream URLs → ffmpeg seeks to your start time and reads **only your range**. A 30-second clip transfers ~5 MB, not gigabytes. |
-| **Precision timestamps** | HH:MM:SS inputs with keyboard-friendly navigation, paste-to-parse (`12:34:56`), and 8 viral presets. |
+| **Precision timestamps** | HH:MM:SS inputs with keyboard-friendly navigation and paste-to-parse (`12:34:56`). |
 | **Quality combos** | `Auto (best)`, per-resolution **Video + Audio** merges (MP4, codec, fps, MB/min), **Video only** (silent), plus audio bitrates (Best / 320 / 192 / 128 kbps) for MP3 & M4A. |
 | **Formats** | MP4 (video), MP3, M4A (audio) — all with proper browser downloads (shows in your downloads bar). |
-| **10-minute max** | Keeps stream-seek fast and reliable. |
+| **30-min recommended max** | Stream-seek is fast and reliable up to ~30 minutes. Longer clips may hit stream URL expiry. Configurable via `MAX_CLIP_SECONDS`. |
 | **Premium UI** | Dark theme, Space Grotesk + JetBrains Mono, Zdog 3D: rotating Savepoint logo (drag it), animated scissors companion, confetti burst on success, pointer-parallax background. |
 | **Zero bloat** | Single Express server, vanilla JS frontend, system ffmpeg + yt-dlp. No Electron, no heavy frameworks. |
 
@@ -43,6 +43,13 @@
 - **yt-dlp** in PATH (tested with 2024+)
 
 ```bash
+# Windows (winget - recommended)
+winget install Gyan.FFmpeg yt-dlp.yt-dlp OpenJS.NodeJS.LTS
+
+# Windows (Scoop / Chocolatey)
+scoop install ffmpeg yt-dlp nodejs-lts
+# or: choco install ffmpeg yt-dlp nodejs-lts
+
 # Ubuntu/Debian
 sudo apt install ffmpeg yt-dlp
 
@@ -56,11 +63,13 @@ brew install ffmpeg yt-dlp
 ### Install & Run
 
 ```bash
-git clone https://github.com/yourusername/savepoint.git
+git clone https://github.com/Kavy-Codes/savepoint.git
 cd savepoint
 npm install          # or: pnpm install
 npm start            # starts server on http://localhost:3000
 ```
+
+> **Windows users**: Works identically in PowerShell or Command Prompt. If ffmpeg is in your system PATH, Savepoint detects it automatically. If installed to a custom directory, set `$env:FFMPEG_PATH="C:\path\to\ffmpeg.exe"` before starting.
 
 Open **http://localhost:3000** — paste a YouTube URL, pick your range, choose quality/format, hit **Cut & Download**.
 
@@ -175,14 +184,14 @@ Environment variables (optional):
 | `PORT` | `3000` | HTTP port |
 | `DOWNLOADS_DIR` | `./downloads` | Temp clip storage (auto-cleaned after 1h) |
 | `FFMPEG_PATH` | `/usr/bin/ffmpeg` | ffmpeg binary |
-| `MAX_CLIP_SECONDS` | `600` | Hard limit |
+| `MAX_CLIP_SECONDS` | `1800` | Hard limit per clip (30 min) |
 
 ---
 
 ## Roadmap
 
 - [ ] **Keyboard shortcuts** — `Space` play/pause preview, `←/→` nudge timestamps
-- [ ] **Chapter markers** — fetch YouTube chapters as preset buttons
+- [ ] **Chapter markers** — fetch YouTube chapters as markers
 - [ ] **Batch queue** — cut multiple ranges in one session
 - [ ] **WebM/VP9 output** — for smaller clips at same quality
 - [ ] **Self-hosted yt-dlp binary** — optional bundled version for locked-down servers
