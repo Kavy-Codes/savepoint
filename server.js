@@ -48,42 +48,65 @@ function validUrl(url) {
   return url.includes('youtube.com') || url.includes('youtu.be');
 }
 
-// ── Cookie detection for YouTube authentication / bot challenges ───────────────
+// ── Dynamic cookie detection for YouTube bot challenges (cross-platform) ────────
 function getCookieArgs() {
-  // 1. Explicit env var
+  // 1. Explicit env var (e.g. COOKIES_PATH=/path/to/cookies.txt)
   if (process.env.COOKIES_PATH && fs.existsSync(process.env.COOKIES_PATH)) {
     return ['--cookies', process.env.COOKIES_PATH];
   }
-  // 2. Local cookies.txt file
+  // 2. Local cookies.txt file in project root
   const localCookies = path.join(__dirname, 'cookies.txt');
   if (fs.existsSync(localCookies)) {
     return ['--cookies', localCookies];
   }
-  // 3. Auto-detect Zen Browser on Linux (checks profiles with actual cookies.sqlite)
-  const zenDir = path.join(os.homedir(), '.zen');
-  if (fs.existsSync(zenDir)) {
-    try {
-      const profiles = fs.readdirSync(zenDir).filter(f => fs.existsSync(path.join(zenDir, f, 'cookies.sqlite')));
-      if (profiles.length > 0) {
-        return ['--cookies-from-browser', `firefox:${path.join(zenDir, profiles[0])}`];
-      }
-    } catch {}
+
+  const home = os.homedir();
+
+  // 3. Auto-detect Zen Browser (Linux / Windows / macOS)
+  const zenDirs = [
+    path.join(home, '.zen'),
+    path.join(home, 'AppData', 'Roaming', 'zen', 'Profiles')
+  ];
+  for (const dir of zenDirs) {
+    if (fs.existsSync(dir)) {
+      try {
+        const profiles = fs.readdirSync(dir).filter(f => fs.existsSync(path.join(dir, f, 'cookies.sqlite')));
+        if (profiles.length > 0) {
+          return ['--cookies-from-browser', `firefox:${path.join(dir, profiles[0])}`];
+        }
+      } catch {}
+    }
   }
-  // 4. Auto-detect standard Firefox
-  const ffDir = path.join(os.homedir(), '.mozilla', 'firefox');
-  if (fs.existsSync(ffDir)) {
-    try {
-      const profiles = fs.readdirSync(ffDir).filter(f => fs.existsSync(path.join(ffDir, f, 'cookies.sqlite')));
-      if (profiles.length > 0) {
-        return ['--cookies-from-browser', `firefox:${path.join(ffDir, profiles[0])}`];
-      }
-    } catch {}
+
+  // 4. Auto-detect Firefox (Linux, macOS, Windows)
+  const ffDirs = [
+    path.join(home, '.mozilla', 'firefox'),
+    path.join(home, 'AppData', 'Roaming', 'Mozilla', 'Firefox', 'Profiles'),
+    path.join(home, 'Library', 'Application Support', 'Firefox', 'Profiles')
+  ];
+  for (const dir of ffDirs) {
+    if (fs.existsSync(dir)) {
+      try {
+        const profiles = fs.readdirSync(dir).filter(f => fs.existsSync(path.join(dir, f, 'cookies.sqlite')));
+        if (profiles.length > 0) {
+          return ['--cookies-from-browser', `firefox:${path.join(dir, profiles[0])}`];
+        }
+      } catch {}
+    }
   }
-  // 5. Auto-detect Google Chrome
-  const chromeCookieDb = path.join(os.homedir(), '.config', 'google-chrome', 'Default', 'Cookies');
-  if (fs.existsSync(chromeCookieDb)) {
-    return ['--cookies-from-browser', 'chrome'];
+
+  // 5. Auto-detect Google Chrome (Linux, macOS, Windows)
+  const chromeDbs = [
+    path.join(home, '.config', 'google-chrome', 'Default', 'Cookies'),
+    path.join(home, 'AppData', 'Local', 'Google', 'Chrome', 'User Data', 'Default', 'Network', 'Cookies'),
+    path.join(home, 'Library', 'Application Support', 'Google', 'Chrome', 'Default', 'Cookies')
+  ];
+  for (const db of chromeDbs) {
+    if (fs.existsSync(db)) {
+      return ['--cookies-from-browser', 'chrome'];
+    }
   }
+
   return [];
 }
 
