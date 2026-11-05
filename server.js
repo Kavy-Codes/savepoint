@@ -47,27 +47,74 @@ function validUrl(url) {
   return url.includes('youtube.com') || url.includes('youtu.be');
 }
 
+// ── yt-dlp helpers with automatic fallback ─────────────────────────────────────
+function fetchVideoMetadata(url) {
+  return new Promise((resolve, reject) => {
+    const run = (extraArgs = []) => {
+      const proc = spawn('yt-dlp', ['--dump-json', '--no-playlist', ...extraArgs, url]);
+      let data = '', stderr = '';
+      proc.stdout.on('data', c => data += c.toString());
+      proc.stderr.on('data', c => stderr += c.toString());
+      proc.on('close', code => {
+        if (code === 0 && data) {
+          try {
+            return resolve(JSON.parse(data));
+          } catch (e) {
+            return reject(new Error('Parse failed'));
+          }
+        }
+        // If default client failed, try android,web fallback
+        if (extraArgs.length === 0) {
+          return run(['--extractor-args', 'youtube:player_client=android,web']);
+        }
+        console.error('yt-dlp metadata failed completely. Stderr:', stderr.slice(-400));
+        reject(new Error(stderr.slice(-200) || 'Failed to fetch video information'));
+      });
+      proc.on('error', err => reject(err));
+    };
+    run();
+  });
+}
+
+function resolveStreamUrls(url, formatSelector) {
+  return new Promise((resolve, reject) => {
+    const run = (extraArgs = []) => {
+      const proc = spawn('yt-dlp', ['-g', '-f', formatSelector, '--no-playlist', ...extraArgs, url]);
+      let urls = '', stderr = '';
+      proc.stdout.on('data', c => urls += c.toString());
+      proc.stderr.on('data', c => stderr += c.toString());
+      proc.on('close', code => {
+        const streams = urls.trim().split('\n').map(s => s.trim()).filter(s => s.startsWith('http'));
+        if (code === 0 && streams.length > 0) {
+          return resolve(streams);
+        }
+        if (extraArgs.length === 0) {
+          return run(['--extractor-args', 'youtube:player_client=android,web']);
+        }
+        console.error('yt-dlp stream extraction failed:', stderr.slice(-400));
+        reject(new Error('Failed to resolve media stream URLs'));
+      });
+      proc.on('error', err => reject(err));
+    };
+    run();
+  });
+}
+
 // ── /api/info ─────────────────────────────────────────────────────────────────
 app.post('/api/info', async (req, res) => {
   try {
     const { url } = req.body;
     if (!validUrl(url)) return res.status(400).json({ error: 'Invalid YouTube URL' });
-    const proc = spawn('yt-dlp', ['--dump-json', '--no-playlist', url]);
-    let data = '';
-    proc.stdout.on('data', c => data += c.toString());
-    proc.on('close', code => {
-      if (code !== 0 || !data) return res.status(500).json({ error: 'Failed to fetch video' });
-      try {
-        const info = JSON.parse(data);
-        res.json({
-          title: info.title,
-          thumbnail: info.thumbnail || info.thumbnails?.[info.thumbnails.length - 1]?.url,
-          duration: info.duration,
-          author: info.uploader || info.channel
-        });
-      } catch { res.status(500).json({ error: 'Parse failed' }); }
+    const info = await fetchVideoMetadata(url);
+    res.json({
+      title: info.title,
+      thumbnail: info.thumbnail || info.thumbnails?.[info.thumbnails.length - 1]?.url,
+      duration: info.duration,
+      author: info.uploader || info.channel
     });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ── /api/formats ──────────────────────────────────────────────────────────────
@@ -75,39 +122,32 @@ app.post('/api/formats', async (req, res) => {
   try {
     const { url } = req.body;
     if (!validUrl(url)) return res.status(400).json({ error: 'Invalid YouTube URL' });
-    const proc = spawn('yt-dlp', ['--dump-json', '--no-playlist', url]);
-    let data = '';
-    proc.stdout.on('data', c => data += c.toString());
-    proc.stderr.on('data', c => console.error('yt-dlp formats stderr:', c.toString().slice(-300)));
-    proc.on('close', code => {
-      if (code !== 0 || !data) return res.status(500).json({ error: 'Failed to list formats' });
-      try {
-        const info = JSON.parse(data);
-        const formats = (info.formats || [])
-          .filter(f => f.ext !== 'mhtml' && (f.vcodec !== 'none' || f.acodec !== 'none'))
-          .map(f => ({
-            id: f.format_id,
-            ext: f.ext,
-            height: f.height || 0,
-            width: f.width || 0,
-            fps: f.fps || 0,
-            vcodec: f.vcodec || 'none',
-            acodec: f.acodec || 'none',
-            tbr: f.tbr || 0,
-            abr: f.abr || 0,
-            filesize: f.filesize || f.filesize_approx || 0,
-            note: f.format_note || ''
-          }));
-        res.json({
-          formats,
-          title: info.title,
-          duration: info.duration,
-          thumbnail: info.thumbnail || info.thumbnails?.[info.thumbnails.length - 1]?.url,
-          author: info.uploader || info.channel
-        });
-      } catch { res.status(500).json({ error: 'Parse failed' }); }
+    const info = await fetchVideoMetadata(url);
+    const formats = (info.formats || [])
+      .filter(f => f.ext !== 'mhtml' && (f.vcodec !== 'none' || f.acodec !== 'none'))
+      .map(f => ({
+        id: f.format_id,
+        ext: f.ext,
+        height: f.height || 0,
+        width: f.width || 0,
+        fps: f.fps || 0,
+        vcodec: f.vcodec || 'none',
+        acodec: f.acodec || 'none',
+        tbr: f.tbr || 0,
+        abr: f.abr || 0,
+        filesize: f.filesize || f.filesize_approx || 0,
+        note: f.format_note || ''
+      }));
+    res.json({
+      formats,
+      title: info.title,
+      duration: info.duration,
+      thumbnail: info.thumbnail || info.thumbnails?.[info.thumbnails.length - 1]?.url,
+      author: info.uploader || info.channel
     });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ── /api/cut ──────────────────────────────────────────────────────────────────
@@ -147,34 +187,28 @@ app.post('/api/cut', async (req, res) => {
       formatSelector = String(quality);
     }
 
-    const proc = spawn('yt-dlp', ['-g', '-f', formatSelector, '--no-playlist', url]);
-    let urls = '';
-    proc.stdout.on('data', c => urls += c.toString());
-    proc.stderr.on('data', c => console.error('yt-dlp stream stderr:', c.toString().slice(-300)));
-    proc.on('close', code => {
-      if (code !== 0 || !urls.trim()) return res.status(500).json({ error: 'No stream URLs' });
-      const streams = urls.trim().split('\n').map(s => s.trim()).filter(s => s.startsWith('http'));
-      if (!streams.length) return res.status(500).json({ error: 'No stream URLs' });
-      console.log(`Cut ${startSec}s–${endSec}s (${duration}s) ${ext} | ${quality} | ${streams.length} stream(s)`);
+    const streams = await resolveStreamUrls(url, formatSelector);
+    console.log(`Cut ${startSec}s–${endSec}s (${duration}s) ${ext} | ${quality} | ${streams.length} stream(s)`);
 
-      const opts = { isAudio, videoOnly, audioBitrate };
-      const args = ['-y'];
-      if (isAudio) {
-        args.push('-ss', String(startSec), '-i', streams[0], '-t', String(duration), '-vn');
-        args.push(...(ext === 'mp3'
-          ? ['-acodec', 'libmp3lame', '-b:a', `${audioBitrate}k`]
-          : ['-acodec', 'aac', '-b:a', `${audioBitrate}k`]));
-      } else {
-        streams.forEach(s => args.push('-ss', String(startSec), '-i', s));
-        args.push('-t', String(duration), '-c:v', 'copy');
-        if (videoOnly) args.push('-an');
-        else args.push('-c:a', 'aac', '-b:a', '160k');
-        args.push('-movflags', '+faststart');
-      }
-      args.push(outputPath);
-      runFfmpeg(args, outputPath, streams, startSec, duration, res, id, ext, opts);
-    });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+    const opts = { isAudio, videoOnly, audioBitrate };
+    const args = ['-y'];
+    if (isAudio) {
+      args.push('-ss', String(startSec), '-i', streams[0], '-t', String(duration), '-vn');
+      args.push(...(ext === 'mp3'
+        ? ['-acodec', 'libmp3lame', '-b:a', `${audioBitrate}k`]
+        : ['-acodec', 'aac', '-b:a', `${audioBitrate}k`]));
+    } else {
+      streams.forEach(s => args.push('-ss', String(startSec), '-i', s));
+      args.push('-t', String(duration), '-c:v', 'copy');
+      if (videoOnly) args.push('-an');
+      else args.push('-c:a', 'aac', '-b:a', '160k');
+      args.push('-movflags', '+faststart');
+    }
+    args.push(outputPath);
+    runFfmpeg(args, outputPath, streams, startSec, duration, res, id, ext, opts);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ── ffmpeg helpers ────────────────────────────────────────────────────────────
