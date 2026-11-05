@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Savepoint — Cut Any Moment, Download Only the Clip</title>
+<meta name="description" content="Cut any time range from a YouTube video without downloading the full file. Stream-seek clipping with quality, format and audio options. Free, no sign-up.">
+<meta name="theme-color" content="#050505">
+<meta property="og:title" content="Savepoint — Cut Any Moment">
+<meta property="og:description" content="Pick a range, pick quality, download only the clip. No full-video downloads.">
+<meta property="og:type" content="website">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/zdog@1/dist/zdog.dist.min.js"></script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <canvas id="hero-scene" class="hero-canvas"></canvas>
+  <canvas class="orb-canvas" id="orb-1"></canvas>
+  <canvas class="orb-canvas" id="orb-2"></canvas>
+  <canvas class="orb-canvas" id="orb-3"></canvas>
+  <canvas id="confetti-canvas" class="confetti-canvas"></canvas>
+
+  <header>
+    <div class="pill"><span class="pill-dot"></span>Stream-seek clipping · No full downloads</div>
+    <div class="brand">
+      <div class="yt-logo-wrap" id="yt-logo-wrap">
+        <canvas id="logo-yt" class="zdog-logo yt-main-logo" width="160" height="160"></canvas>
+      </div>
+      <h1>Savepoint</h1>
+    </div>
+    <p class="tagline">Cut any moment from any YouTube video — only the clip downloads.</p>
+    <div class="header-deco">
+      <span class="deco-line"></span>
+      <span class="deco-dot"></span>
+      <span class="deco-line"></span>
+    </div>
+  </header>
+
+  <main>
+    <section class="card" id="mainCard">
+      <div class="card-head">
+        <span class="step-badge" id="stepBadge">01</span>
+        <h2 id="cardTitle">Paste YouTube URL</h2>
+      </div>
+
+      <div class="section" id="urlSection">
+        <div class="url-row">
+          <div class="url-input-wrap">
+            <label class="section-label" for="ytUrl">Video Link</label>
+            <div class="input-group">
+              <svg class="url-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+              <input type="url" id="ytUrl" placeholder="https://youtube.com/watch?v=…  or  https://youtu.be/…" autocomplete="off" spellcheck="false">
+              <button class="paste-btn" id="pasteBtn" type="button" title="Paste from clipboard">Paste</button>
+              <div class="input-border"></div>
+            </div>
+          </div>
+          <button class="btn btn-primary btn-lg" id="loadBtn" type="button">
+            <span>Load Video</span>
+            <svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12l-7 7-7-7M12 5v14"/></svg>
+            <span class="btn-ripple"></span>
+          </button>
+        </div>
+        <p id="loadError" class="err-msg" role="alert"></p>
+      </div>
+
+      <div class="section hidden" id="controlsSection">
+        <div class="video-preview" id="videoPreview">
+          <div class="thumb-wrap">
+            <img id="thumb" src="" alt="Video thumbnail">
+            <canvas id="thumb-play" class="thumb-play-canvas" width="80" height="80"></canvas>
+            <span class="dur-badge" id="durBadge"></span>
+          </div>
+          <div class="video-info">
+            <h3 id="vidTitle"></h3>
+            <div class="vid-meta">
+              <span class="meta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><span id="vidDur"></span></span>
+              <span class="meta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/></svg><span id="vidAuthor"></span></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="quality-section">
+          <label class="section-label" id="qualityLabel" for="qualityTrigger">Video Quality <span class="label-hint" id="qualityCount"></span></label>
+          <div class="quality-dropdown" id="qualityDropdown">
+            <button class="quality-dd-trigger" id="qualityTrigger" type="button" aria-haspopup="listbox" aria-expanded="false">
+              <span class="dd-selected" id="ddSelected">
+                <span class="dd-label">Auto (best)</span>
+                <span class="dd-meta">Best video + audio</span>
+              </span>
+              <svg class="dd-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+            <div class="quality-dd-panel hidden" id="qualityPanel" role="listbox" aria-label="Quality options"></div>
+          </div>
+        </div>
+
+        <div class="time-grid">
+          <div class="time-block">
+            <label class="time-label">Start Time</label>
+            <div class="time-input-group" id="startGroup">
+              <div class="time-field-wrap">
+                <input type="number" class="time-field" id="startH" min="0" max="99" value="0" aria-label="Start hours" inputmode="numeric">
+                <span class="field-label">H</span>
+              </div>
+              <span class="time-sep">:</span>
+              <div class="time-field-wrap">
+                <input type="number" class="time-field" id="startM" min="0" max="59" value="00" aria-label="Start minutes" inputmode="numeric">
+                <span class="field-label">M</span>
+              </div>
+              <span class="time-sep">:</span>
+              <div class="time-field-wrap">
+                <input type="number" class="time-field" id="startS" min="0" max="59" value="00" aria-label="Start seconds" inputmode="numeric">
+                <span class="field-label">S</span>
+              </div>
+            </div>
+          </div>
+          <div class="time-arrow" aria-hidden="true">
+            <canvas id="arrow-canvas" width="40" height="40"></canvas>
+          </div>
+          <div class="time-block">
+            <label class="time-label">End Time</label>
+            <div class="time-input-group" id="endGroup">
+              <div class="time-field-wrap">
+                <input type="number" class="time-field" id="endH" min="0" max="99" value="0" aria-label="End hours" inputmode="numeric">
+                <span class="field-label">H</span>
+              </div>
+              <span class="time-sep">:</span>
+              <div class="time-field-wrap">
+                <input type="number" class="time-field" id="endM" min="0" max="59" value="00" aria-label="End minutes" inputmode="numeric">
+                <span class="field-label">M</span>
+              </div>
+              <span class="time-sep">:</span>
+              <div class="time-field-wrap">
+                <input type="number" class="time-field" id="endS" min="0" max="59" value="00" aria-label="End seconds" inputmode="numeric">
+                <span class="field-label">S</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="duration-preview" id="durationPreview">
+          <span class="dur-label">Clip Duration</span>
+          <span class="dur-value" id="durValue">00:00</span>
+          <span class="dur-size" id="durSize">~0 MB</span>
+        </div>
+
+        <div class="preset-section">
+          <label class="section-label">Viral Presets</label>
+          <div class="preset-scroll" id="presetScroll"></div>
+        </div>
+
+        <div class="format-section">
+          <label class="section-label" id="formatLabel">Format</label>
+          <div class="format-pills" id="formatPills" role="radiogroup" aria-labelledby="formatLabel"></div>
+        </div>
+
+        <div class="cut-row">
+          <div class="scissors-box" aria-hidden="true">
+            <canvas id="scissors-canvas" width="56" height="56"></canvas>
+          </div>
+          <button class="btn btn-cut btn-lg" id="cutBtn" type="button">
+            <span>Cut &amp; Download</span>
+            <svg class="btn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12l-7 7-7-7M12 5v14"/></svg>
+            <span class="btn-ripple"></span>
+          </button>
+        </div>
+
+        <div class="progress-wrap hidden" id="progressWrap">
+          <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+          <p class="progress-text" id="progressText">Initializing stream…</p>
+        </div>
+        <p id="statusMsg" class="status" role="status"></p>
+      </div>
+    </section>
+
+    <section id="how" class="info">
+      <div class="info-head">
+        <span class="info-kicker">How it works</span>
+        <h2>Three steps. One clip.</h2>
+      </div>
+      <div class="steps">
+        <div class="step">
+          <span class="step-num">1</span>
+          <h3>Paste the link</h3>
+          <p>Any public YouTube URL — long videos welcome. Metadata is read without downloading the file.</p>
+        </div>
+        <div class="step">
+          <span class="step-num">2</span>
+          <h3>Pick your range</h3>
+          <p>Set start and end to the second, choose a preset, format and quality combo.</p>
+        </div>
+        <div class="step">
+          <span class="step-num">3</span>
+          <h3>Cut &amp; download</h3>
+          <p>ffmpeg seeks the stream and grabs only your range. No 3 GB download in the background.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="faq" class="info">
+      <div class="info-head">
+        <span class="info-kicker">FAQ</span>
+        <h2>Good to know</h2>
+      </div>
+      <div class="faq">
+        <details class="faq-item" open>
+          <summary>Does this download the whole video?</summary>
+          <p>No. yt-dlp resolves direct stream URLs, then ffmpeg seeks to your start time and reads only your range. A 30-second clip moves a few megabytes, not gigabytes.</p>
+        </details>
+        <details class="faq-item">
+          <summary>What do the quality options mean?</summary>
+          <p><strong>Video + Audio</strong> merges the best video and audio streams at that resolution into an MP4. <strong>Video only</strong> is silent (handy for B-roll). MP3 and M4A switch the menu to audio bitrates.</p>
+        </details>
+        <details class="faq-item">
+          <summary>Why is there a 10-minute limit?</summary>
+          <p>Stream-seek clipping stays fast and reliable for short ranges. For longer material, a full download is usually the better tool.</p>
+        </details>
+        <details class="faq-item">
+          <summary>Which format should I pick?</summary>
+          <p>MP4 for editing and sharing, MP3 for universal audio, M4A for smaller AAC audio at higher quality. Downloads land in your browser's normal downloads bar.</p>
+        </details>
+      </div>
+    </section>
+  </main>
+
+  <div class="toast hidden" id="successToast" role="status">
+    <canvas id="toast-canvas" width="60" height="60"></canvas>
+    <div class="toast-content">
+      <h3>Clip Ready!</h3>
+      <p id="toastDetails"></p>
+    </div>
+    <button class="btn btn-ghost btn-sm" id="toastDismiss" type="button">Dismiss</button>
+  </div>
+
+  <footer>
+    <div class="footer-inner">
+      <p class="footer-brand"><img src="favicon.svg" width="20" height="20" alt=""> Savepoint</p>
+      <p>Stream-seek clipping with yt-dlp + ffmpeg. Only the selected range is fetched — never the full video.</p>
+      <p class="tiny">For personal use only. Respect YouTube's Terms of Service and content owners' rights. Not affiliated with YouTube.</p>
+    </div>
+  </footer>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
