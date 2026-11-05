@@ -183,8 +183,11 @@ Environment variables (optional):
 |----------|---------|-------------|
 | `PORT` | `3000` | HTTP port |
 | `DOWNLOADS_DIR` | `./downloads` | Temp clip storage (auto-cleaned after 1h) |
-| `FFMPEG_PATH` | `/usr/bin/ffmpeg` | ffmpeg binary |
+| `FFMPEG_PATH` | auto-detected | ffmpeg binary path |
 | `MAX_CLIP_SECONDS` | `1800` | Hard limit per clip (30 min) |
+| `COOKIES_PATH` | auto-detected | Path to `cookies.txt` (or place `cookies.txt` in root) to bypass YouTube bot checks |
+
+> **Bypassing YouTube bot checks**: YouTube occasionally asks for verification on certain videos or cloud IP ranges. Savepoint automatically auto-detects active browser sessions on desktop (Zen, Firefox, Chrome), or you can place an exported `cookies.txt` in the project root directory.
 
 ---
 

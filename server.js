@@ -5,6 +5,7 @@ import ffmpeg from 'fluent-ffmpeg';
 import { v4 as uuidv4 } from 'uuid';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -47,11 +48,70 @@ function validUrl(url) {
   return url.includes('youtube.com') || url.includes('youtu.be');
 }
 
+// ── Cookie detection for YouTube authentication / bot challenges ───────────────
+function getCookieArgs() {
+  // 1. Explicit env var
+  if (process.env.COOKIES_PATH && fs.existsSync(process.env.COOKIES_PATH)) {
+    return ['--cookies', process.env.COOKIES_PATH];
+  }
+  // 2. Local cookies.txt file
+  const localCookies = path.join(__dirname, 'cookies.txt');
+  if (fs.existsSync(localCookies)) {
+    return ['--cookies', localCookies];
+  }
+  // 3. Auto-detect Zen Browser on Linux (checks profiles with actual cookies.sqlite)
+  const zenDir = path.join(os.homedir(), '.zen');
+  if (fs.existsSync(zenDir)) {
+    try {
+      const profiles = fs.readdirSync(zenDir).filter(f => fs.existsSync(path.join(zenDir, f, 'cookies.sqlite')));
+      if (profiles.length > 0) {
+        return ['--cookies-from-browser', `firefox:${path.join(zenDir, profiles[0])}`];
+      }
+    } catch {}
+  }
+  // 4. Auto-detect standard Firefox
+  const ffDir = path.join(os.homedir(), '.mozilla', 'firefox');
+  if (fs.existsSync(ffDir)) {
+    try {
+      const profiles = fs.readdirSync(ffDir).filter(f => fs.existsSync(path.join(ffDir, f, 'cookies.sqlite')));
+      if (profiles.length > 0) {
+        return ['--cookies-from-browser', `firefox:${path.join(ffDir, profiles[0])}`];
+      }
+    } catch {}
+  }
+  // 5. Auto-detect Google Chrome
+  const chromeCookieDb = path.join(os.homedir(), '.config', 'google-chrome', 'Default', 'Cookies');
+  if (fs.existsSync(chromeCookieDb)) {
+    return ['--cookies-from-browser', 'chrome'];
+  }
+  return [];
+}
+
+function cleanYtDlpError(stderr) {
+  if (!stderr) return 'Failed to process YouTube video';
+  if (stderr.includes('Sign in to confirm you’re not a bot') || stderr.includes('Sign in to confirm that you\'re not a bot')) {
+    return 'YouTube bot-check triggered. Provide a cookies.txt file or use an active browser session.';
+  }
+  if (stderr.includes('Video unavailable') || stderr.includes('This video is not available')) {
+    return 'This video is unavailable or has been removed.';
+  }
+  if (stderr.includes('Private video')) {
+    return 'This video is private.';
+  }
+  // Find clean first error line
+  const errLine = stderr.split('\n').find(l => l.startsWith('ERROR:'));
+  if (errLine) {
+    return errLine.replace(/ERROR:\s*(\[youtube\]\s*[\w-]+\s*:\s*)?/i, '').trim();
+  }
+  return 'Failed to extract video information from YouTube';
+}
+
 // ── yt-dlp helpers with automatic fallback ─────────────────────────────────────
 function fetchVideoMetadata(url) {
   return new Promise((resolve, reject) => {
+    const cookieArgs = getCookieArgs();
     const run = (extraArgs = []) => {
-      const proc = spawn('yt-dlp', ['--dump-json', '--no-playlist', ...extraArgs, url]);
+      const proc = spawn('yt-dlp', ['--dump-json', '--no-playlist', ...cookieArgs, ...extraArgs, url]);
       let data = '', stderr = '';
       proc.stdout.on('data', c => data += c.toString());
       proc.stderr.on('data', c => stderr += c.toString());
@@ -60,15 +120,15 @@ function fetchVideoMetadata(url) {
           try {
             return resolve(JSON.parse(data));
           } catch (e) {
-            return reject(new Error('Parse failed'));
+            return reject(new Error('Failed to parse video metadata'));
           }
         }
-        // If default client failed, try android,web fallback
+        // If first attempt failed, try android,web fallback
         if (extraArgs.length === 0) {
           return run(['--extractor-args', 'youtube:player_client=android,web']);
         }
-        console.error('yt-dlp metadata failed completely. Stderr:', stderr.slice(-400));
-        reject(new Error(stderr.slice(-200) || 'Failed to fetch video information'));
+        console.error('yt-dlp metadata failed. Stderr:', stderr);
+        reject(new Error(cleanYtDlpError(stderr)));
       });
       proc.on('error', err => reject(err));
     };
@@ -78,8 +138,9 @@ function fetchVideoMetadata(url) {
 
 function resolveStreamUrls(url, formatSelector) {
   return new Promise((resolve, reject) => {
+    const cookieArgs = getCookieArgs();
     const run = (extraArgs = []) => {
-      const proc = spawn('yt-dlp', ['-g', '-f', formatSelector, '--no-playlist', ...extraArgs, url]);
+      const proc = spawn('yt-dlp', ['-g', '-f', formatSelector, '--no-playlist', ...cookieArgs, ...extraArgs, url]);
       let urls = '', stderr = '';
       proc.stdout.on('data', c => urls += c.toString());
       proc.stderr.on('data', c => stderr += c.toString());
@@ -91,8 +152,8 @@ function resolveStreamUrls(url, formatSelector) {
         if (extraArgs.length === 0) {
           return run(['--extractor-args', 'youtube:player_client=android,web']);
         }
-        console.error('yt-dlp stream extraction failed:', stderr.slice(-400));
-        reject(new Error('Failed to resolve media stream URLs'));
+        console.error('yt-dlp stream extraction failed. Stderr:', stderr);
+        reject(new Error(cleanYtDlpError(stderr)));
       });
       proc.on('error', err => reject(err));
     };
